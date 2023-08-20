@@ -42,4 +42,5 @@ public class TextEntry
     public string MetaOriginalText { get; set; } = string.Empty;
 
     public int MetaOriginalAddress { get; set; }
+    public string MetaOriginalHex { get; set; } = string.Empty;
 }

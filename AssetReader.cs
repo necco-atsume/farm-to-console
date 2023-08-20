@@ -1,6 +1,9 @@
 using System.Buffers.Binary;
+using System.CommandLine.IO;
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 public enum Endianness
@@ -44,41 +47,70 @@ public class AssetReader
 
     public byte[] ReadBytes(int offset, int length) => bytes.Slice(offset, length).ToArray();
 
-    public T Read<T>(Cursor cursor, Endianness endianness = Endianness.Little) where T : unmanaged
-    {
-        T value = Read<T>(cursor.Offset, endianness);
-        cursor.Offset += Marshal.SizeOf<T>();
+    public byte ReadByte(int offset) => bytes.Span[offset];
+    public sbyte ReadSByte(int offset) => (sbyte) bytes.Span[offset];
 
-        return value;
+    public ushort ReadUInt16(int offset) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.Span[offset..]);
+    public ushort ReadUInt16(Cursor cursor)
+    { 
+        var val = ReadUInt16(cursor.Offset);
+        cursor.MoveForward(sizeof(ushort));
+        return val;
     }
 
-    public T Read<T>(int offset, Endianness endianness = Endianness.Little) where T : unmanaged
-    {
-        object result = (Type.GetTypeCode(typeof(T)), endianness) switch {
-            (TypeCode.Byte, _) => bytes.Span[offset],
-            (TypeCode.SByte, _) => (sbyte) bytes.Span[offset],
+    public uint ReadUInt32(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.Span[offset..]);
+    public uint ReadUInt32(Cursor cursor)
+    { 
+        var val = ReadUInt32(cursor.Offset);
+        cursor.MoveForward(sizeof(uint));
+        return val;
+    }
+    public ulong ReadUInt64(int offset) => BinaryPrimitives.ReadUInt64LittleEndian(bytes.Span[offset..]);
+    public ulong ReadUInt64(Cursor cursor)
+    { 
+        var val = ReadUInt64(cursor.Offset);
+        cursor.MoveForward(sizeof(ulong));
+        return val;
+    }
 
-            (TypeCode.UInt16, Endianness.Little) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.Span.Slice(offset, sizeof(short))),
-            (TypeCode.UInt32, Endianness.Little) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.Span.Slice(offset, sizeof(int))),
-            (TypeCode.UInt64, Endianness.Little) => BinaryPrimitives.ReadUInt64LittleEndian(bytes.Span.Slice(offset, sizeof(long))),
-            (TypeCode.Int16, Endianness.Little) => BinaryPrimitives.ReadInt16LittleEndian(bytes.Span.Slice(offset, sizeof(short))),
-            (TypeCode.Int32, Endianness.Little) => BinaryPrimitives.ReadInt32LittleEndian(bytes.Span.Slice(offset, sizeof(int))),
-            (TypeCode.Int64, Endianness.Little) => BinaryPrimitives.ReadInt64LittleEndian(bytes.Span.Slice(offset, sizeof(long))),
-            (TypeCode.Single, Endianness.Little) => BinaryPrimitives.ReadSingleLittleEndian(bytes.Span.Slice(offset, sizeof(float))),
-            (TypeCode.Double, Endianness.Little) => BinaryPrimitives.ReadDoubleLittleEndian(bytes.Span.Slice(offset, sizeof(double))),
+    public short ReadInt16(int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.Span[offset..]);
+    public short ReadInt16(Cursor cursor)
+    { 
+        var val = ReadInt16(cursor.Offset);
+        cursor.MoveForward(sizeof(short));
+        return val;
+    }
 
-            (TypeCode.UInt16, Endianness.Big) => BinaryPrimitives.ReadUInt16BigEndian(bytes.Span.Slice(offset, sizeof(short))),
-            (TypeCode.UInt32, Endianness.Big) => BinaryPrimitives.ReadUInt32BigEndian(bytes.Span.Slice(offset, sizeof(int))),
-            (TypeCode.UInt64, Endianness.Big) => BinaryPrimitives.ReadUInt64BigEndian(bytes.Span.Slice(offset, sizeof(long))),
-            (TypeCode.Int16, Endianness.Big) => BinaryPrimitives.ReadInt16BigEndian(bytes.Span.Slice(offset, sizeof(short))),
-            (TypeCode.Int32, Endianness.Big) => BinaryPrimitives.ReadInt32BigEndian(bytes.Span.Slice(offset, sizeof(int))),
-            (TypeCode.Int64, Endianness.Big) => BinaryPrimitives.ReadInt64BigEndian(bytes.Span.Slice(offset, sizeof(long))),
-            (TypeCode.Single, Endianness.Big) => BinaryPrimitives.ReadSingleBigEndian(bytes.Span.Slice(offset, sizeof(float))),
-            (TypeCode.Double, Endianness.Big) => BinaryPrimitives.ReadDoubleBigEndian(bytes.Span.Slice(offset, sizeof(double))),
-            _ => throw new Exception()
-        };
+    public int ReadInt32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(bytes.Span[offset..]);
+    public int ReadInt32(Cursor cursor)
+    { 
+        var val = ReadInt32(cursor.Offset);
+        cursor.MoveForward(sizeof(int));
+        return val;
+    }
 
-        return (T) result;
+    public long ReadInt64(int offset) => BinaryPrimitives.ReadInt64LittleEndian(bytes.Span[offset..]);
+    public long ReadInt64(Cursor cursor)
+    { 
+        var val = ReadInt64(cursor.Offset);
+        cursor.MoveForward(sizeof(long));
+        return val;
+    }
+
+    public float ReadFloat(int offset) => BinaryPrimitives.ReadSingleLittleEndian(bytes.Span[offset..]);
+    public float ReadFloat(Cursor cursor)
+    { 
+        var val = ReadFloat(cursor.Offset);
+        cursor.MoveForward(sizeof(float));
+        return val;
+    }
+
+    public double ReadDouble(int offset) => BinaryPrimitives.ReadDoubleLittleEndian(bytes.Span[offset..]);
+    public double ReadDouble(Cursor cursor)
+    { 
+        var val = ReadDouble(cursor.Offset);
+        cursor.MoveForward(sizeof(double));
+        return val;
     }
 
     public string ReadNullTerminatedString(Cursor cursor) 
@@ -98,16 +130,120 @@ public class AssetReader
         return length;
     }
 
-    public string ReadNullTerminatedString(int offset)
+    public string ReadNullTerminatedString(int offset, bool encodingIsAscii = true)
     {
         int length = StrlenAt(offset);
-        return ReadAsciiString(offset, length);
+        if (encodingIsAscii) return ReadAsciiString(offset, length);
+        else return ReadShiftJisString(offset, length);
+    }
+
+    public string ReadHarvestMoonDsString(int offset)
+    {
+        // TODO: Don't like that this logic lives here... :/
+        // Modular-ize this.
+        byte[] textRaw = ReadNullTerminatedBytes(offset);
+
+        List<byte> byteBuf = new();
+        for (int i = 0; i < textRaw.Length; i++) {
+            // NB: 0xFF is a special space char in shiftjis.
+            // \u8190 is a star character that's used all over the place.
+            if (i + 1 < textRaw.Length && textRaw[i] == 0x81 && textRaw[i+1] == 0xFF)
+            {
+                byteBuf.AddRange("[:81ff]".Select(x => (byte)x).ToArray());
+                i++;
+            } 
+            else if (i + 1 < textRaw.Length && textRaw[i] == 0x81 && textRaw[i+1] == 0x99)
+            {
+                byteBuf.AddRange("[:star]".Select(x => (byte)x).ToArray());
+                i++;
+            } 
+            else if (i + 1 < textRaw.Length && textRaw[i] == 0x81 && textRaw[i+1] == 0x63)
+            {
+                byteBuf.AddRange("[:ellipsis]".Select(x => (byte)x).ToArray());
+                i++;
+            } 
+            else if (i + 1 < textRaw.Length && textRaw[i] == 0x81 && textRaw[i+1] == 0x40)
+            {
+                byteBuf.AddRange("[:idsp]".Select(x => (byte)x).ToArray());
+                i++;
+            } 
+            else if (i + 1 < textRaw.Length && textRaw[i] == 0x81 && textRaw[i+1] == 0xF4)
+            {
+                byteBuf.AddRange("[:note]".Select(x => (byte)x).ToArray());
+                i++;
+            } 
+            else if (i + 1 < textRaw.Length && textRaw[i] == 0x81 && textRaw[i+1] == 0x48)
+            {
+                byteBuf.AddRange("[:fwqm]".Select(x => (byte)x).ToArray());
+                i++;
+            }
+            else if (i + 1 < textRaw.Length && textRaw[i] == 0xFF && textRaw[i+1] == 0x24)
+            {
+                byteBuf.AddRange("[%player]".Select(x => (byte)x).ToArray());
+                i++;
+            }
+            else if (i + 1 < textRaw.Length && textRaw[i] == 0x81)
+            {
+                byteBuf.AddRange(("[:" + textRaw[i].ToString("x") + textRaw[i+1].ToString("x") + "]").Select(x => (byte)x).ToArray());
+            }
+            else if (textRaw[i] == 0xff) 
+            {
+                byteBuf.AddRange("[%replace]".Select(x => (byte)x).ToArray());
+            }
+            else 
+            {
+                byteBuf.Add(textRaw[i]);
+            }
+        }
+
+        byte[] text = byteBuf.ToArray();
+
+        if (text.Any(b => (b & 0x80) == 0x80 && b != 0xFF)) 
+        {
+            // Likely Japanese.
+            try {
+                var shiftJis = Encoding.GetEncoding(932, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+                return "jp:" + shiftJis.GetString(text);
+            } 
+            catch {}
+        }
+
+        byte[] textReplaced = text.SelectMany(a => 
+            a > 0x7f 
+                ? new[] { (byte)'[', (byte)':', (byte)a.ToString("x")[0], (byte)a.ToString("x")[1], (byte)']' } 
+                : new[] { a }).ToArray();
+        Encoding.GetEncoding("ascii"); 
+        return "en:" + Encoding.ASCII.GetString(textReplaced);
+    }
+
+    public string ReadShiftJisString(int offset, int length)
+    {
+        var bytes = ReadBytes(offset, length);
+        return Encoding.GetEncoding(932).GetString(bytes);
     }
 
     public string ReadAsciiString(int offset, int length) 
     {
         var bytes = ReadBytes(offset, length);
-        return Encoding.ASCII.GetString(bytes);
+        if (bytes.Any(b => (b & 0x80) == 0x80)) 
+        {
+            return "hex:" + Convert.ToHexString(bytes);
+        }
+        else 
+        {
+            return Encoding.ASCII.GetString(bytes);
+        }
+    }
+
+    public byte[] ReadNullTerminatedBytes(int offset) 
+    {
+        int length = 0;
+        while (offset + length < bytes.Length && bytes.Span[offset + length] != 0)
+        {
+            length++;
+        }
+
+        return bytes.Slice(offset, length).ToArray();
     }
 
     public class Cursor 
